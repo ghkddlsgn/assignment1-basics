@@ -1,9 +1,10 @@
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 import pickle
-
-
 from cs336_basics.pretokenization_example import find_chunk_boundaries
+
+train_path = "data\TinyStoriesV2-GPT4-train.txt"
+test_path = "data\TinyStoriesV2-GPT4-valid.txt"
 
 def count_chunk(file_path: str, start: int, end: int) -> None:
     with open(file_path, "rb") as f:
@@ -23,10 +24,15 @@ def main():
     file_path = "data/TinyStoriesV2-GPT4-train.txt"
     num_processes = 4
     
-    with open(file_path, "rb") as f:
+    
+
+def train_tokenizer(input_path:str, vocab_size:int, special_tokens:list[str], num_processes:int=4
+    ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
+    
+    with open(input_path, "rb") as f:
         boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
     
-    jobs = [(file_path, start, end) for start, end in zip(boundaries[:-1], boundaries[1:])]
+    jobs = [(input_path, start, end) for start, end in zip(boundaries[:-1], boundaries[1:])]
     
     total_counts = Counter()
     
@@ -38,6 +44,7 @@ def main():
 
     with open("total_counts.pkl", "wb") as f:
         pickle.dump(total_counts, f)
+   
 
 if __name__ == "__main__":
     main()
