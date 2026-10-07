@@ -8,6 +8,12 @@ from cs336_basics.pretokenization_example import find_chunk_boundaries
 train_path = "data\TinyStoriesV2-GPT4-train.txt"
 test_path = "data\TinyStoriesV2-GPT4-valid.txt"
 
+import regex as re
+
+PAT = re.compile(
+    r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+)
+
 def count_chunk(file_path: str, start: int, end: int) -> Counter[tuple[bytes, ...]]:
     with open(file_path, "rb") as f:
         f.seek(start)
@@ -16,7 +22,8 @@ def count_chunk(file_path: str, start: int, end: int) -> Counter[tuple[bytes, ..
     counts = Counter()
     
     for document in text.split("<|endoftext|>"):
-        for word in document.split():
+        for match in PAT.finditer:
+            word = match.group(0)
             pieces = tuple(bytes([b]) for b in word.encode("utf-8"))
             counts[pieces] += 1
     
@@ -32,8 +39,9 @@ def get_pair_count(chunk_count:Counter[tuple[bytes, ...]]):
     
     return pair_count
 
-def get_max_pair_count(chunk_count:Counter[tuple[bytes, ...]], max_workers:int=4):
+def get_max_pair_count(chunk_count:Counter[tuple[bytes, ...]], pool:ProcessPoolExecutor, max_workers:int=4):
     items = list[tuple[tuple[bytes, ...], int]](chunk_count.items())
+    if len(items) == 0: return None
     chunk_size = (len(items) + max_workers - 1) // max_workers
     
     jobs = [Counter(dict(items[i:i+chunk_size])) for i in range(0, len(items), chunk_size)]
@@ -69,7 +77,7 @@ def train_tokenizer(input_path:str, vocab_size:int, special_tokens:list[str], nu
     ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     
     with open(input_path, "rb") as f:
-        boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
+        boundaries = find_chunk_boundaries(f, num_processes, special_tokens)
 
     merged:list[tuple[bytes, bytes]] = []
     vocab: dict[int, bytes] = {i: bytes([i]) for i in range(256)}
@@ -81,8 +89,8 @@ def train_tokenizer(input_path:str, vocab_size:int, special_tokens:list[str], nu
     current_chunk_counts = Counter()
 
     with ProcessPoolExecutor(max_workers=num_processes) as pool:
-        for chunk_counts in pool.map(count_chunk, jobs_chunk_count[0], jobs_chunk_count[1], jobs_chunk_count[2]):
-            current_chunk_counts.update(chunk_counts)    
+        for chunk_counts in pool.map(count_chunk, *zip(*jobs_chunk_count)):
+            current_chunk_counts.update(chunk_counts)
     
     print(f"pre token num : {len(current_chunk_counts)}")
 
