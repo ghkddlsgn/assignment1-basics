@@ -1,6 +1,8 @@
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
+from itertools import repeat
 import pickle
+
 from cs336_basics.pretokenization_example import find_chunk_boundaries
 
 train_path = "data\TinyStoriesV2-GPT4-train.txt"
@@ -31,48 +33,91 @@ def get_pair_count(chunk_count:Counter[tuple[bytes, ...]]):
     return pair_count
 
 def get_max_pair_count(chunk_count:Counter[tuple[bytes, ...]], max_workers:int=4):
-    items = list[tuple[bytes, ...]](chunk_count)
+    items = list[tuple[tuple[bytes, ...], int]](chunk_count.items())
     chunk_size = (len(items) + max_workers - 1) // max_workers
     
-    jobs = [Counter(dict(items[i:i+chunk_size]) for i in range(0, len(items), chunk_size))]
+    jobs = [Counter(dict(items[i:i+chunk_size])) for i in range(0, len(items), chunk_size)]
     
     total_pair_counts:Counter[tuple[bytes, bytes]] = Counter()
     with ProcessPoolExecutor(max_workers=max_workers) as pool:
         for pair_counts in pool.map(get_pair_count, jobs):
             total_pair_counts.update(pair_counts)
     
-    return max(total_pair_counts, key=lambda pair:(total_pair_counts[pair], pair), default=None) #????
-            
-def main():
-    file_path = "data/TinyStoriesV2-GPT4-train.txt"
-    num_processes = 4
-    result = train_tokenizer(file_path, vocab_size=10000, special_tokens=["<|endoftext|>"], num_processes=4)
+    return max(total_pair_counts, key=lambda pair:(total_pair_counts[pair], pair), default=None)
+
+def merged_target_pair(chunk_count:Counter[tuple[bytes, ...]], target_pair:tuple[bytes, bytes]) -> Counter[tuple[bytes, bytes]]:
+    new_chunk_count = Counter()
+    for word, frequent in chunk_count.items():
+        i = 0
+        new_word = []
+        while i < len(word) - 1:
+            if (word[i],word[i+1]) == target_pair:
+                new_word.append(word[i] + word[i+1])
+                i += 2
+            else:
+                new_word.append(word[i])
+                i += 1
+        
+        if i == len(word) - 1: #handle the last if there's remain chr
+            new_word.append(word[i])
+        
+        new_chunk_count[tuple(new_word)] += frequent
+    
+    return new_chunk_count
 
 def train_tokenizer(input_path:str, vocab_size:int, special_tokens:list[str], num_processes:int=4
     ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     
     with open(input_path, "rb") as f:
         boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
-    
+
+    merged:list[tuple[bytes, bytes]] = []
+    vocab: dict[int, bytes] = {i: bytes([i]) for i in range(256)}
+    for token in special_tokens:
+        vocab[len(vocab)] = token.encode()
+
     #pretokenizing - count chunk count
     jobs_chunk_count = [(input_path, start, end) for start, end in zip(boundaries[:-1], boundaries[1:])]
-    total_counts = Counter()
-    
+    current_chunk_counts = Counter()
+
     with ProcessPoolExecutor(max_workers=num_processes) as pool:
-        for chunk_counts in pool.map(count_chunk, jobs_chunk_count):
-            total_counts.update(chunk_counts)
+        for chunk_counts in pool.map(count_chunk, jobs_chunk_count[0], jobs_chunk_count[1], jobs_chunk_count[2]):
+            current_chunk_counts.update(chunk_counts)    
     
-    print(f"pre token num : {len(total_counts)}")
+    print(f"pre token num : {len(current_chunk_counts)}")
 
     with open("total_counts.pkl", "wb") as f:
-        pickle.dump(total_counts, f)
+        pickle.dump(current_chunk_counts, f)
     #end of pretokenizing
     
     #start of pair count
-    iter_num = 10
-    for i in range(iter_num):
+    while len(vocab) < vocab_size:
+        new_chunk_count = Counter()
         
-    
+        max_frequent_pair = get_max_pair_count(current_chunk_counts, num_processes)
+        if max_frequent_pair == None:
+            break
+        merged.append(max_frequent_pair)
+
+        vocab[len(vocab)] = max_frequent_pair[0] + max_frequent_pair[1]
+        chunk_items = list(current_chunk_counts.items())
+        chunk_size = (len(chunk_items) + num_processes - 1) // num_processes
+        jobs = [
+            Counter(dict(chunk_items[i:i + chunk_size]))
+            for i in range(0, len(chunk_items), chunk_size)
+        ]
+        with ProcessPoolExecutor(max_workers=num_processes) as pool:
+            for chunk_count in pool.map(merged_target_pair, jobs, repeat(max_frequent_pair)):
+                new_chunk_count.update(chunk_count)
+        
+        current_chunk_counts = new_chunk_count
+
+    return (vocab, merged)
+        
+def main():
+    file_path = "data/TinyStoriesV2-GPT4-train.txt"
+    num_processes = 4
+    result = train_tokenizer(file_path, vocab_size=10000, special_tokens=["<|endoftext|>"], num_processes=4)
     
     
 
