@@ -1,24 +1,45 @@
+from typing import NamedTuple
 import torch
 import torch.nn as nn
 from torch import Tensor
-from cs336_basics.transformer_module import MultiheadSelfAttention, RMSnorm, Linear, Swiglu
+from cs336_basics.transformer_module import MultiheadSelfAttention, RMSnorm, Linear, Swiglu, Embedding
+
+class KVCache(NamedTuple):
+    k: Tensor
+    v: Tensor
 
 class TransformerLM(nn.Module):
     def __init__(self, input_dim:int = 512, hidden_dim:int = 512, output_dim:int = 512, 
-                 vocab_size:int = 10000, context_length:int = 10000, num_layers:int = 8, num_heads:int = 8, device: str = "cuda" ):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                 vocab_size:int = 10000, context_length:int = 10000, num_layers:int = 8, 
+                 num_heads:int = 8, device: str = "cuda", dtype=torch.bfloat16):
+        super().__init__()
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.vocab_size = vocab_size
         self.context_length = context_length
-        self.num_layers = num_layers                 
+        self.num_layers = num_layers
             
         # self.tokenizer: tiktoken.Encoding = tiktoken.get_encoding("gpt2")
         # self.vocab_size = self.tokenizer.max_token_value + 1
+
+        self.input = Embedding(vocab_size, hidden_dim, device, dtype)
+        self.transformer_blocks = nn.ModuleList([
+            PreNormTransformerBlock(hidden_dim, num_heads, vocab_size, context_length, self.device, dtype)
+            for _ in range(num_layers)
+        ])
+        self.kv_cache:list[KVCache] = [] * num_layers
+        self.norm = RMSnorm(hidden_dim)
+        self.output = Linear(hidden_dim, output_dim, device, dtype)
     
     def forward(self, x:Tensor):
-        pass
+        x = self.input(x)
+        for i, kv in enumerate(self.kv_cache):
+            
+        x = self.norm(x)
+        x = self.output(x)
+        
 
 class PreNormTransformerBlock(nn.Module):
     def __init__(self, hidden_dim:int = 512, num_heads:int = 8,
@@ -43,6 +64,5 @@ class PreNormTransformerBlock(nn.Module):
         res2 = self.norm2(x)
         res2 = self.ff(res2)
         x = x + res2
-        del res2
 
-        return x
+        return x, KVCache(new_k, new_v)

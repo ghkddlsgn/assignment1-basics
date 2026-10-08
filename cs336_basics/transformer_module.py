@@ -37,7 +37,7 @@ class Linear(nn.Module):
     def forward(self, x:Tensor) -> Tensor:
         return einsum(x, self.weight, "... d_in, d_out d_in -> ... d_out")
 
-class EmbeddingModule(nn.Module):
+class Embedding(nn.Module):
     def __init__(self, num_embeddings:int, embedding_dim:int, device=None, dtype=None):
         super().__init__()
         self.weight = nn.Parameter(
