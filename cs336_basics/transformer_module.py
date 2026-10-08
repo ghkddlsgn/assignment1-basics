@@ -26,11 +26,12 @@ def scaled_dot_product_attention(q: Tensor, k: Tensor, v: Tensor, attn_mask: Ten
     result = scores @ v
     return result
 
-class LinearModule(nn.Module):
+class Linear(nn.Module):
     def __init__(self, in_features, out_features, device=None, dtype=None):
         super().__init__()
         self.weight = nn.Parameter(torch.empty(out_features, in_features, device=device, dtype=dtype))
-        std = torch.sqrt(2/(in_features + out_features))
+        std = (2 / (in_features + out_features)) ** 0.5
+   
         nn.init.trunc_normal_(self.weight, 0, std, a = -3 * std, b=3*std)
     
     def forward(self, x:Tensor) -> Tensor:
@@ -48,7 +49,7 @@ class EmbeddingModule(nn.Module):
     def forward(self, token_ids:Tensor) -> Tensor:
         return self.weight[token_ids]
 
-class RMSnormModule(nn.Module):
+class RMSnorm(nn.Module):
     def __init__(self, d_model: int, eps: float = 1e-5, device=None, dtype=None):
         super().__init__()
         self.d_model = d_model
@@ -66,7 +67,7 @@ class RMSnormModule(nn.Module):
             (x**2).sum(dim=-1, keepdim=True) / self.d_model + self.eps
         )
 
-class SwigluModule(nn.Module):
+class Swiglu(nn.Module):
     def __init__(self, d_model:int = 64, device=None, dtype=None):
         super().__init__()
         d_ff = d_model * 8 // 3
@@ -76,11 +77,11 @@ class SwigluModule(nn.Module):
         
         for w in (self.w1, self.w2, self.w3):
             d_in, d_out = w.shape
-            std = torch.sqrt(2 / (d_in + d_out))
+            std = (2 / (d_in + d_out)) ** 0.5
             nn.init.trunc_normal_(w, std=std, a=-3 * std, b=3 * std)
 
     def silu(self, x:Tensor):
-        return nn.Sigmoid(x) * x
+        return torch.sigmoid(x) * x
     
     def forward(self, x:Tensor):
         gate = self.silu(x @ self.w1.T)
@@ -89,6 +90,9 @@ class SwigluModule(nn.Module):
         return swiglu
 
 class RopeModule(nn.Module):
+    cos_cache: Tensor
+    sin_cache: Tensor
+
     def __init__(self, theta: float, d_head: int, max_seq_len: int, device=None):
         super().__init__()
         self.d_k = d_head
@@ -134,7 +138,7 @@ class MultiheadSelfAttention(nn.Module):
             nn.init.trunc_normal_(w, std=std, a=-3*std, b=3*std)
         
         
-    def forward(self, x:Tensor, past_kv=None) -> tuple[Tensor, Tensor, Tensor]:
+    def forward(self, x:Tensor, past_kv=None):
         #[batch head seq emb]
         new_q = self.get_xw(x, self.wq)
         new_k = self.get_xw(x, self.wk)
@@ -166,7 +170,7 @@ class MultiheadSelfAttention(nn.Module):
         result = scaled_dot_product_attention(new_q_embed, total_k, total_v, mask)
         result = rearrange(result, "... head seq emb -> ... seq (head emb)")
         result = result @ self.w0.T
-        return (result, total_k, total_v)
+        return result, total_k, total_v
         
     def get_xw(self, x:Tensor, w:Tensor):
         result = einsum(x, w, "... seq emb, head_total emb -> ... seq head_total")
