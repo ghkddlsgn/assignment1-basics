@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from typing import NamedTuple, cast
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -29,16 +29,19 @@ class TransformerLM(nn.Module):
             PreNormTransformerBlock(hidden_dim, num_heads, vocab_size, context_length, self.device, dtype)
             for _ in range(num_layers)
         ])
-        self.kv_cache:list[KVCache] = [] * num_layers
+        self.kv_cache:list[KVCache|None] = [None] * num_layers
         self.norm = RMSnorm(hidden_dim)
         self.output = Linear(hidden_dim, output_dim, device, dtype)
     
     def forward(self, x:Tensor):
         x = self.input(x)
-        for i, kv in enumerate(self.kv_cache):
-            
+        for i, (block, cur_kv) in enumerate(zip(self.transformer_blocks, self.kv_cache)):
+            x, new_kv = block(x, cur_kv)
+            self.kv_cache[i] = new_kv
+
         x = self.norm(x)
         x = self.output(x)
+        return x
         
 
 class PreNormTransformerBlock(nn.Module):
@@ -55,7 +58,7 @@ class PreNormTransformerBlock(nn.Module):
         self.norm2 = RMSnorm(hidden_dim, device=device, dtype=dtype)
         self.ff = Swiglu(hidden_dim, device=device, dtype=dtype)
         
-    def forward(self, x:Tensor, past_kv=None):
+    def forward(self, x:Tensor, past_kv:KVCache|None=None):
         res1 = self.norm1(x)
         res1, new_k, new_v = self.multi_head_attention_rope(res1, past_kv)
         x = x + res1
