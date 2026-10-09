@@ -68,9 +68,8 @@ class RMSnorm(nn.Module):
         )
 
 class Swiglu(nn.Module):
-    def __init__(self, d_model:int = 64, device=None, dtype=None):
+    def __init__(self, d_model:int = 64, d_ff:int = 128, device=None, dtype=None):
         super().__init__()
-        d_ff = d_model * 8 // 3
         self.w1 = nn.Parameter(torch.empty(d_ff, d_model, device=device, dtype=dtype))
         self.w2 = nn.Parameter(torch.empty(d_model, d_ff, device=device, dtype=dtype))
         self.w3 = nn.Parameter(torch.empty(d_ff, d_model, device=device, dtype=dtype))
@@ -120,10 +119,14 @@ class RopeModule(nn.Module):
         return torch.stack((a_rot, b_rot), dim=-1).flatten(-2).to(x.dtype)
 
 class MultiheadSelfAttention(nn.Module):
-    def __init__(self, d_model:int, num_heads:int, max_seq_len:int=10000, rope_theta:float = 10000, device=None, dtype=None):
+    def __init__(self, d_model:int, num_heads:int, max_seq_len:int=65_536, rope_theta:float = 10000, device=None, dtype=None):
         super().__init__()
         self.num_heads:int = num_heads
         head_dim:int = d_model // num_heads
+        
+        assert num_heads > 0
+        assert d_model % num_heads == 0
+        assert (d_model // num_heads) % 2 == 0
         
         self.rope = RopeModule(rope_theta, head_dim, max_seq_len, device)
         
@@ -139,6 +142,9 @@ class MultiheadSelfAttention(nn.Module):
         
         
     def forward(self, x:Tensor, past_kv=None):
+        """
+        return attention score + (old kv + new kv)
+        """
         #[batch head seq emb]
         new_q = self.get_xw(x, self.wq)
         new_k = self.get_xw(x, self.wk)
