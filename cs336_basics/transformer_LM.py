@@ -9,14 +9,14 @@ class KVCache(NamedTuple):
     v: Tensor
 
 class TransformerLM(nn.Module):
-    def __init__(self, input_dim:int = 512, hidden_dim:int = 512, output_dim:int = 512, 
+    def __init__(self, input_dim:int = 512, hidden_dim:int = 512, 
                  vocab_size:int = 10000, context_length:int = 10000, num_layers:int = 8, 
-                 num_heads:int = 8, device: str = "cuda", dtype=torch.bfloat16):
+                 num_heads:int = 8, device: str|None = None, dtype=torch.bfloat16):
         super().__init__()
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
-        self.output_dim = output_dim
         self.vocab_size = vocab_size
         self.context_length = context_length
         self.num_layers = num_layers
@@ -26,12 +26,15 @@ class TransformerLM(nn.Module):
 
         self.input = Embedding(vocab_size, hidden_dim, device, dtype)
         self.transformer_blocks = nn.ModuleList([
-            PreNormTransformerBlock(hidden_dim, num_heads, vocab_size, context_length, self.device, dtype)
+            PreNormTransformerBlock(hidden_dim, num_heads, vocab_size, context_length, device, dtype)
             for _ in range(num_layers)
         ])
-        self.kv_cache:list[KVCache|None] = [None] * num_layers
-        self.norm = RMSnorm(hidden_dim)
-        self.output = Linear(hidden_dim, output_dim, device, dtype)
+        
+        self.kv_cache:list[KVCache|None] = []
+        self.reset_kv_cache()
+
+        self.norm = RMSnorm(hidden_dim, device=device, dtype=dtype)
+        self.output = Linear(hidden_dim, vocab_size, device, dtype)
     
     def forward(self, x:Tensor):
         x = self.input(x)
@@ -42,7 +45,9 @@ class TransformerLM(nn.Module):
         x = self.norm(x)
         x = self.output(x)
         return x
-        
+    
+    def reset_kv_cache(self) -> None:
+        self.kv_cache = [None] * self.num_layers
 
 class PreNormTransformerBlock(nn.Module):
     def __init__(self, hidden_dim:int = 512, num_heads:int = 8,
