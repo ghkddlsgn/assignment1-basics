@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 from einops import einsum, rearrange
 from cs336_basics.cache_buffer import CacheBuffer
@@ -27,8 +28,9 @@ def scaled_dot_product_attention(q: Tensor, k:Tensor, v:Tensor, attn_mask: Tenso
     result = scores @ v
     return result
 
-def cross_entropy(y_pred:Tensor, y:Tensor) -> Tensor:
-    return (-y * torch.log(y_pred)).sum()
+def cross_entropy(logits:Tensor, y:Tensor) -> Tensor:
+    log_probs = F.log_softmax(logits, dim=-1)
+    return -(y * log_probs).sum(dim=-1).mean()
 
 class Linear(nn.Module):
     def __init__(self, in_features, out_features, device=None, dtype=None):
