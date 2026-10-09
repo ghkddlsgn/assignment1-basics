@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from einops import einsum, rearrange
+from cs336_basics.cache_buffer import CacheBuffer
 import math
 
 def softmax(x:Tensor, i:int):
@@ -11,11 +12,11 @@ def softmax(x:Tensor, i:int):
     
     return exps/exp_sum
 
-def scaled_dot_product_attention(q: Tensor, k: Tensor, v: Tensor, attn_mask: Tensor = None) -> Tensor:
+def scaled_dot_product_attention(q: Tensor, k:Tensor, v:Tensor, attn_mask: Tensor = None) -> Tensor:
     # q = [batch, ..., seq_len_q, d_k]
     # k = [batch, ..., seq_len_k, d_k]
     # v = [batch, ..., seq_len_k, d_v]
-
+    
     qk = einsum(q, k, "... seq_len_q emb, ... seq_len_k emb -> ... seq_len_q seq_len_k")
     presoftmax = qk / math.sqrt(q.shape[-1])  # [seq_len_q seq_len_k]
 
@@ -119,7 +120,7 @@ class RopeModule(nn.Module):
         return torch.stack((a_rot, b_rot), dim=-1).flatten(-2).to(x.dtype)
 
 class MultiheadSelfAttention(nn.Module):
-    def __init__(self, d_model:int, num_heads:int, max_seq_len:int=65_536, rope_theta:float = 10000, device=None, dtype=None):
+    def __init__(self,k_cache:CacheBuffer, v_cache:CacheBuffer, d_model:int, num_heads:int, max_seq_len:int=65_536, rope_theta:float = 10000, device=None, dtype=None):
         super().__init__()
         self.num_heads:int = num_heads
         head_dim:int = d_model // num_heads
@@ -134,26 +135,22 @@ class MultiheadSelfAttention(nn.Module):
         self.wk = nn.Parameter(torch.empty(num_heads * head_dim, d_model, device=device, dtype=dtype))
         self.wv = nn.Parameter(torch.empty(num_heads * head_dim, d_model, device=device, dtype=dtype))
         self.w0 = nn.Parameter(torch.empty(num_heads * head_dim, d_model, device=device, dtype=dtype))
-   
+        self.k_cache:CacheBuffer = k_cache
+        self.v_cache:CacheBuffer = v_cache
         
         for w in (self.wq, self.wk, self.wv, self.w0):
             std = math.sqrt(2/(w.shape[0] + w.shape[1]))
             nn.init.trunc_normal_(w, std=std, a=-3*std, b=3*std)
         
-        
-    def forward(self, x:Tensor, past_kv=None):
-        """
-        return attention score + (old kv + new kv)
-        """
+    def forward(self, x:Tensor, use_cache:bool = False):
+        """Return attention output; update KV buffers only when use_cache is True."""
         #[batch head seq emb]
         new_q = self.get_xw(x, self.wq)
         new_k = self.get_xw(x, self.wk)
         new_v = self.get_xw(x, self.wv)
         
-        past_kv_len = 0 if past_kv is None else past_kv[0].shape[-2]
-        
-        new_q_len, new_k_len = new_q.shape[-2], new_k.shape[-2]
-        
+        past_kv_len = self.k_cache.len if use_cache else 0
+        new_q_len = new_q.shape[-2]
         
         token_positions = torch.arange(
             past_kv_len, past_kv_len + new_q_len, device=new_q.device, dtype=torch.long
@@ -161,22 +158,23 @@ class MultiheadSelfAttention(nn.Module):
         new_q_embed = self.rope(new_q, token_positions)
         new_k_embed = self.rope(new_k, token_positions)
         
-        if past_kv is None:
+        if use_cache:
+            self.k_cache.append_to_buffer(new_k_embed)
+            self.v_cache.append_to_buffer(new_v)
+            total_k = self.k_cache.get_cache()
+            total_v = self.v_cache.get_cache()
+        else:
             total_k = new_k_embed
             total_v = new_v
-        else:
-            past_k, past_v = past_kv
-            total_k = torch.cat((past_k, new_k_embed), dim=-2)
-            total_v = torch.cat((past_v, new_v), dim=-2)
-        
+
         mask = torch.ones(
-            new_q_len, total_k.shape[-2], dtype=torch.bool, device=new_q.device
+            new_q_len, total_k.shape[-2], dtype=torch.bool, device=x.device
         ).tril(diagonal=total_k.shape[-2] - new_q_len)
 
         result = scaled_dot_product_attention(new_q_embed, total_k, total_v, mask)
         result = rearrange(result, "... head seq emb -> ... seq (head emb)")
         result = result @ self.w0.T
-        return result, total_k, total_v
+        return result
         
     def get_xw(self, x:Tensor, w:Tensor):
         result = einsum(x, w, "... seq emb, head_total emb -> ... seq head_total")
