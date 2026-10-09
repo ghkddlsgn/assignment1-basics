@@ -27,6 +27,9 @@ def scaled_dot_product_attention(q: Tensor, k:Tensor, v:Tensor, attn_mask: Tenso
     result = scores @ v
     return result
 
+def cross_entropy(y_pred:Tensor, y:Tensor) -> Tensor:
+    return (-y * torch.log(y_pred)).sum()
+
 class Linear(nn.Module):
     def __init__(self, in_features, out_features, device=None, dtype=None):
         super().__init__()
