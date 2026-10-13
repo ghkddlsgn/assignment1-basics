@@ -6,6 +6,16 @@ from einops import einsum, rearrange
 from cs336_basics.cache_buffer import CacheBuffer
 import math
 
+def schedular(min_lr = 0, max_lr = 1, t:int = 0, warm_up_steps:int=100, decaying_steps:int = 5000):
+    if t < warm_up_steps:
+        lr = (t * max_lr)/warm_up_steps
+    elif t < decaying_steps:
+        lr = min_lr + 0.5 * (1 + math.cos(math.pi * (t - warm_up_steps)/(decaying_steps - warm_up_steps))) * (max_lr - min_lr)
+    else:
+        lr = min_lr
+    
+    return lr
+
 def softmax(x:Tensor, i:int):
     xi_max = x.max(dim=i, keepdim=True).values
     exps = torch.exp(x - xi_max)
