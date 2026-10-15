@@ -1,50 +1,27 @@
-from unittest import loader
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
-from torch.utils.data import Dataset, DataLoader
+from datasets import Dataset
+from torch.utils.data import DataLoader
 
 from cs336_basics.transformer_LM import TransformerLM
 from cs336_basics.Optimizer import AdamW
 from cs336_basics.checkpoint import ModelConfig, ModelCheckpointDict
 
-class TokenDataset(Dataset):
-    def __init__(self, token_ids, context_length):
-        self.tokens = torch.as_tensor(
-            token_ids, dtype=torch.long, device="cpu"
-        )
-        self.context_length = context_length
-
-        if self.tokens.ndim != 1:
-            raise ValueError("token_ids must be 1-dimensional.")
-        if context_length <= 0:
-            raise ValueError("context_length must be positive.")
-        if len(self.tokens) < context_length + 1:
-            raise ValueError("Not enough tokens for training.")
-       
-
-    def __len__(self):
-        return (len(self.tokens) - 1) // self.context_length
-
-    def __getitem__(self, index):
-        start = index * self.context_length
-        end = start + self.context_length
-
-        x = self.tokens[start:end]
-        y = self.tokens[start + 1:end + 1]
-        return x, y
-
-def train(token_ids, vocab_size, num_epoch:int=3):
+def train(dataset: Dataset, vocab_size, num_epoch:int=3):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    context_length = 128
+    if num_epoch <= 0 or len(dataset) == 0:
+        raise ValueError("Training requires a nonempty dataset and positive num_epoch.")
     
-    dataset = TokenDataset(token_ids, context_length)
-
-    if dataset.tokens.max().item() >= vocab_size:
-        raise ValueError("token size exceeded vocab size")
+    feature = dataset.features.get("input_ids")
+    context_length = getattr(feature, "length", -1) - 1
     
-    train_data = DataLoader(dataset, batch_size=8, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
+    dataset = dataset.with_format("torch", columns=["input_ids"], dtype=torch.long)
+    train_data = DataLoader(dataset, batch_size=8, shuffle=True, num_workers=0, pin_memory=device == "cuda", drop_last=False)
+    print(
+        f"tokens_per_epoch={len(dataset) * context_length:,} samples={len(dataset):,} "
+        f"steps_per_epoch={len(train_data):,} total_steps={len(train_data) * num_epoch:,}",
+        flush=True,
+    )
     model_config:ModelConfig = {
         "hidden_dim":128,
         "vocab_size": vocab_size,
@@ -62,11 +39,12 @@ def train(token_ids, vocab_size, num_epoch:int=3):
         total_loss = 0.0
         total_tokens = 0
         
-        for x,y in train_data:
-            x:Tensor
-            y:Tensor
-            x = x.to(device, non_blocking=True)
-            y = y.to(device, non_blocking=True)
+        for batch in train_data:
+            tokens = batch["input_ids"]
+            if tokens.min().item() < 0 or tokens.max().item() >= vocab_size:
+                raise ValueError("token ID outside vocabulary")
+            tokens = tokens.to(device, non_blocking=True)
+            x, y = tokens[:, :-1], tokens[:, 1:]
             
             optimizer.zero_grad()
             logits = model(x, use_cache=False)
