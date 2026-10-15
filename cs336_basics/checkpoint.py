@@ -11,4 +11,5 @@ def save_checkpoint(model:nn.Module, optimizer:Optimizer, iteration:int,
     savings = []
     model.state_dict()
 
-def load_checkpoint(src, model:nn.Module, optimizer)
+def load_checkpoint(src, model:nn.Module, optimizer):
+    pass
