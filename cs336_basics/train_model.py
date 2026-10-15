@@ -1,4 +1,3 @@
-from typing import TypedDict
 from unittest import loader
 import torch
 import torch.nn as nn
@@ -8,6 +7,7 @@ from torch.utils.data import Dataset, DataLoader
 
 from cs336_basics.transformer_LM import TransformerLM
 from cs336_basics.Optimizer import AdamW
+from cs336_basics.checkpoint import ModelConfig, ModelCheckpointDict
 
 class TokenDataset(Dataset):
     def __init__(self, token_ids, context_length):
@@ -35,13 +35,6 @@ class TokenDataset(Dataset):
         y = self.tokens[start + 1:end + 1]
         return x, y
 
-class ModelConfig(TypedDict):
-    hidden_dim: int
-    vocab_size: int
-    max_kv_len: int
-    num_layers: int
-    num_heads: int
-
 def train(token_ids, vocab_size, num_epoch:int=3):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     context_length = 128
@@ -52,7 +45,7 @@ def train(token_ids, vocab_size, num_epoch:int=3):
         raise ValueError("token size exceeded vocab size")
     
     train_data = DataLoader(dataset, batch_size=8, shuffle=True, num_workers=0, pin_memory=True, drop_last=False)
-    model_config:ModelConfig = ModelConfig{
+    model_config:ModelConfig = {
         "hidden_dim":128,
         "vocab_size": vocab_size,
         "max_kv_len":context_length,
@@ -69,17 +62,17 @@ def train(token_ids, vocab_size, num_epoch:int=3):
         total_loss = 0.0
         total_tokens = 0
         
-        for x,y in loader:
+        for x,y in train_data:
             x:Tensor
             y:Tensor
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
             
             optimizer.zero_grad()
-            logits = model(x, use_cache=True)
+            logits = model(x, use_cache=False)
             loss = F.cross_entropy(logits.reshape(-1, vocab_size), y.reshape(-1))
             
-            if not torch.isinf(loss).item():
+            if not torch.isfinite(loss).item():
                 raise RuntimeError(f"loss unstable. loss:{loss}")
             
             loss.backward()
@@ -105,8 +98,6 @@ def train(token_ids, vocab_size, num_epoch:int=3):
             f"train_loss={total_loss / total_tokens:.4f}"
         )
         
-        from cs336_basics.checkpoint import ModelCheckpointDict  # assumes this is where the typed dict is defined for now
-
         checkpoint: ModelCheckpointDict = {
             "epoch": epoch + 1,
             "global_step": global_step,
@@ -116,6 +107,8 @@ def train(token_ids, vocab_size, num_epoch:int=3):
             "optimizer_t": optimizer.t,
         }
         torch.save(checkpoint, "checkpoint.pt")
+    
+    return model, optimizer, checkpoint
     
 def load_checkpoint():
     device = "cuda" if torch.cuda.is_available() else "cpu"
