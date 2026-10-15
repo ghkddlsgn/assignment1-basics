@@ -1,0 +1,23 @@
+# Python >=3.12,<3.14. Keep these dependencies aligned with pyproject.toml.
+# With pip: python -m pip install -r requirements.txt
+# With uv: use `uv sync --inexact` (CUDA index configured in pyproject.toml).
+--extra-index-url https://download.pytorch.org/whl/cu130
+
+einops>=0.8
+einx>=0.4
+jaxtyping>=0.3
+numpy>=2.4
+psutil>=7
+pytest>=9.0
+pytest-timeout
+regex>=2026.3.32
+tiktoken>=0.12.0
+# Explicit CUDA build prevents pip from accepting an installed CPU-only build.
+torch==2.11.0+cu130; sys_platform == 'win32' or sys_platform == 'linux'
+torch~=2.11.0; sys_platform == 'darwin'
+tqdm>=4.67
+wandb>=0.25
+ty>=0.0.26
+ruff>=0.15.8
+pydantic>=2.12.5
+datasets>=5.1.0
