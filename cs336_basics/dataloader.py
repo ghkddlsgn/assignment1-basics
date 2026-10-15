@@ -13,6 +13,10 @@ import multiprocessing as mp
 def tokenize_story(story, tokenizer):
     return tokenizer.encode(story)
 
+def _init_worker(tokenizer):
+    global _worker_tokenizer
+    _worker_tokenizer = tokenizer
+
 #-----------------------------------------------
 
 class StoryDataset:
