@@ -1,6 +1,6 @@
 Things to do
 
-- [ ] **텍스트 생성 기능**  
+- [x] **텍스트 생성 기능**  
   [TransformerLM (line 41)](/E:/Program/assignment1-basics/cs336_basics/transformer_LM.py:41)은 다음 토큰의 점수인 logits까지 반환해. 여기서 토큰을 선택하고 다시 입력하는 생성 루프, EOS 종료, temperature/top-p 처리는 아직 없어. KV cache는 준비되어 있어.
 
 - [ ] **검증 데이터로 성능 평가**  

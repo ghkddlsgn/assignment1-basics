@@ -16,12 +16,16 @@ def schedular(min_lr = 0, max_lr = 1, t:int = 0, warm_up_steps:int=100, decaying
     
     return lr
 
-def softmax(x:Tensor, i:int):
+def softmax(x: Tensor, i: int, temperature: float = 1.0):
     xi_max = x.max(dim=i, keepdim=True).values
-    exps = torch.exp(x - xi_max)
-    exp_sum = exps.sum(dim=i, keepdim=True)
-    
-    return exps/exp_sum
+
+    if temperature == 0:      
+        return (x == xi_max).float() #return 1hot vec 
+    else:
+        x /= temperature
+        exps = torch.exp(x - xi_max)
+        exp_sum = exps.sum(dim=i, keepdim=True)
+        return exps/exp_sum
 
 def scaled_dot_product_attention(q: Tensor, k:Tensor, v:Tensor, attn_mask: Tensor = None) -> Tensor:
     # q = [batch, ..., seq_len_q, d_k]

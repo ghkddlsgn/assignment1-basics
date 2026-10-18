@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 from torch import Tensor
-from source.transformer_module import MultiheadSelfAttention, RMSnorm, Linear, Swiglu, Embedding
+from source.transformer_module import MultiheadSelfAttention, RMSnorm, Linear, Swiglu, Embedding, softmax
 from source.cache_buffer import CacheBuffer
+from config import end_of_text_token_id
 
 
 class TransformerLM(nn.Module):
@@ -37,8 +38,10 @@ class TransformerLM(nn.Module):
         ])
         self.norm = RMSnorm(hidden_dim, device=device, dtype=dtype)
         self.output = Linear(hidden_dim, vocab_size, device, dtype)
+
     
-    def forward(self, x:Tensor, use_cache:bool = False):
+    @torch.compile()
+    def forward(self, x:Tensor, use_cache:bool = False) -> Tensor:
         x = self.input(x)
         for block in self.transformer_blocks:
             x = block(x, use_cache=use_cache)
@@ -50,6 +53,32 @@ class TransformerLM(nn.Module):
         for cache in self.kv_cache:
             cache["k"].clean_buffer()
             cache["v"].clean_buffer()
+    
+    @torch.compile()
+    def generate_text(self, query_token_ids:Tensor, dtype=torch.long, device="cuda", max_new_tokens:int = 512, temperature:float = 1.0) -> Tensor:
+        #only work for batch size == 1
+        last_token_id:Tensor = Tensor()
+        query = torch.tensor(query_token_ids, dtype, device).unsqueeze(0) #add batch dim
+        if len(query_token_ids.shape) > 2:
+            raise ValueError("Input query_token_ids must be a 1D or 2D tensor (sequence or [batch=1, sequence]).")
+       
+        generated = []
+
+        for _ in range(max_new_tokens):
+            logits = self.forward(query, use_cache=True)
+            p_logit = softmax(logits[:, -1, :], -1, temperature)
+            last_token_id = torch.multinomial(p_logit, 1)
+
+            if last_token_id.item() == end_of_text_token_id:
+                break
+
+            generated.append(last_token_id)
+            query = last_token_id
+        
+        if generated:
+            return torch.cat(generated, dim=1)
+        else:
+            return query.new_empty((1, 0), dtype=query.dtype, device=query.device)
         
 class PreNormTransformerBlock(nn.Module):
     def __init__(self, hidden_dim:int = 512, num_heads:int = 8,
@@ -72,7 +101,8 @@ class PreNormTransformerBlock(nn.Module):
         )
         self.norm2 = RMSnorm(hidden_dim, device=device, dtype=dtype)
         self.ff = Swiglu(d_model=hidden_dim, d_ff=128, device=device, dtype=dtype)
-        
+    
+    @torch.compile()
     def forward(self, x:Tensor, use_cache:bool = False):
         res1 = self.norm1(x)
         res1 = self.multi_head_attention_rope(res1, use_cache=use_cache)
