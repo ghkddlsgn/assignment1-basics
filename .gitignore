@@ -1,0 +1,48 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.uv-cache/
+
+# Build and packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Tests, linting, and coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Jupyter temporary files
+.ipynb_checkpoints/
+
+# Local environment variables
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Training data and generated artifacts
+/data/
+/checkpoints/
+/wandb/
+*.pt
+*.pth
+*.log
+
+# Operating system files
+.DS_Store
+Thumbs.db
