@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch import Tensor
 from source.transformer_module import MultiheadSelfAttention, RMSnorm, Linear, Swiglu, Embedding, softmax
 from source.cache_buffer import CacheBuffer
-from config import end_of_text_token_id
+from config import end_of_text_token_id, device
 
 
 class TransformerLM(nn.Module):
@@ -82,10 +82,9 @@ class TransformerLM(nn.Module):
         
 class PreNormTransformerBlock(nn.Module):
     def __init__(self, hidden_dim:int = 512, num_heads:int = 8,
-                 vocab_size:int = 10000, context_length:int = 65_536, device:str|None = None, dtype=torch.bfloat16,
+                 vocab_size:int = 10000, context_length:int = 65_536, device:str = device, dtype=torch.bfloat16,
                  *, k_cache:CacheBuffer|None = None, v_cache:CacheBuffer|None = None):
         super().__init__()
-        if device is None: device = "cuda" if torch.cuda.is_available() else "cpu"
         self.hidden_dim = hidden_dim
         self.vocab_size = vocab_size
         self.context_length = context_length

@@ -5,8 +5,8 @@ import pickle
 
 from source.pretokenization_example import find_chunk_boundaries
 
-train_path = "data\TinyStoriesV2-GPT4-train.txt"
-test_path = "data\TinyStoriesV2-GPT4-valid.txt"
+train_path = "data/TinyStoriesV2-GPT4-train.txt"
+test_path = "data/TinyStoriesV2-GPT4-valid.txt"
 
 import regex as re
 

@@ -9,8 +9,5 @@ Things to do
 - [ ] **체크포인트에서 학습 이어가기**  
   [train_model.py (line 79)](/E:/Program/assignment1-basics/cs336_basics/train_model.py:79)에 저장·로드는 구현되어 있어. 다만 `train()`은 항상 모델과 optimizer를 새로 만들어서, 불러온 상태로 학습을 이어가는 경로가 없어. 별도의 [checkpoint.py (line 27)](/E:/Program/assignment1-basics/cs336_basics/checkpoint.py:27)는 저장 함수가 미완성이고 로드는 `pass`야.
 
-- [ ] **테스트 연결**  
-  [tests/adapters.py (line 13)](/E:/Program/assignment1-basics/tests/adapters.py:13)의 **21개 함수가 모두 `NotImplementedError`**야. 구현한 모듈을 과제 테스트에서 검증할 수 있도록 연결해야 해. 또 [데이터 테스트 (line 10)](/E:/Program/assignment1-basics/tests/test_training_data.py:10)가 가져오는 `cs336_basics.training_data` 소스 파일이 현재 없어.
-
 - [ ] **별도 데이터로더의 배치 처리 오류**  
   [StoryDataLoader (line 76)](/E:/Program/assignment1-basics/cs336_basics/dataloader.py:76)는 첫 배치를 반환한 뒤 리스트를 비우지 않아. 이후 길이가 `batch_size`를 초과하면서 다음 배치를 반환하지 못해. 현재 노트북은 다른 DataLoader 경로를 사용하고 있어.
