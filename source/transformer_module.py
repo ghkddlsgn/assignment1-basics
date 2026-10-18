@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from einops import einsum, rearrange
-from cs336_basics.cache_buffer import CacheBuffer
+from source.cache_buffer import CacheBuffer
 import math
 
 def schedular(min_lr = 0, max_lr = 1, t:int = 0, warm_up_steps:int=100, decaying_steps:int = 5000):

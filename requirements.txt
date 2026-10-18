@@ -1,6 +1,7 @@
 # Python >=3.12,<3.14. Keep these dependencies aligned with pyproject.toml.
 # With pip: python -m pip install -r requirements.txt
-# With uv: use `uv sync --inexact` (CUDA index configured in pyproject.toml).
+# With uv: `uv add -r requirements.txt`, then `uv sync --inexact`.
+# uv uses the PyTorch index mapping in pyproject.toml; the option below is for pip.
 --extra-index-url https://download.pytorch.org/whl/cu130
 
 einops>=0.8

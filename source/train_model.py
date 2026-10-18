@@ -3,9 +3,9 @@ import torch.nn.functional as F
 from datasets import Dataset
 from torch.utils.data import DataLoader
 
-from cs336_basics.transformer_LM import TransformerLM
-from cs336_basics.Optimizer import AdamW
-from cs336_basics.checkpoint import ModelConfig, ModelCheckpointDict
+from source.transformer_LM import TransformerLM
+from source.Optimizer import AdamW
+from source.checkpoint import ModelConfig, ModelCheckpointDict
 
 def train(dataset: Dataset, vocab_size, num_epoch:int=3):
     device = "cuda" if torch.cuda.is_available() else "cpu"

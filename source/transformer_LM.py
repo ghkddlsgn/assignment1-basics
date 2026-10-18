@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 from torch import Tensor
-from cs336_basics.transformer_module import MultiheadSelfAttention, RMSnorm, Linear, Swiglu, Embedding
-from cs336_basics.cache_buffer import CacheBuffer
+from source.transformer_module import MultiheadSelfAttention, RMSnorm, Linear, Swiglu, Embedding
+from source.cache_buffer import CacheBuffer
 
 
 class TransformerLM(nn.Module):

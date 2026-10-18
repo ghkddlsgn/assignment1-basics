@@ -3,7 +3,7 @@ from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
 import pickle
 
-from cs336_basics.pretokenization_example import find_chunk_boundaries
+from source.pretokenization_example import find_chunk_boundaries
 
 train_path = "data\TinyStoriesV2-GPT4-train.txt"
 test_path = "data\TinyStoriesV2-GPT4-valid.txt"

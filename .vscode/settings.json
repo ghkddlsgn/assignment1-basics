@@ -1,0 +1,18 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}"
+  ],
+  "python.terminal.executeInFileDir": false,
+  "jupyter.notebookFileRoot": "${workspaceFolder}",
+  "terminal.integrated.cwd": "${workspaceFolder}",
+  "terminal.integrated.env.windows": {
+    "PYTHONPATH": "${workspaceFolder};${env:PYTHONPATH}"
+  },
+  "terminal.integrated.env.linux": {
+    "PYTHONPATH": "${workspaceFolder}:${env:PYTHONPATH}"
+  },
+  "terminal.integrated.env.osx": {
+    "PYTHONPATH": "${workspaceFolder}:${env:PYTHONPATH}"
+  }
+}

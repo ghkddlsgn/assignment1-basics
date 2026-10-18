@@ -1,0 +1,46 @@
+[project]
+name = "assignment1-basics"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "ghkddlsgn", email = "121390479+ghkddlsgn@users.noreply.github.com" }
+]
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "datasets>=5.1.0",
+    "einops>=0.8",
+    "einx>=0.4",
+    "jaxtyping>=0.3",
+    "numpy>=2.4",
+    "psutil>=7",
+    "pydantic>=2.12.5",
+    "pytest>=9.0",
+    "pytest-timeout>=2.4.0",
+    "regex>=2026.3.32",
+    "ruff>=0.15.8",
+    "tiktoken>=0.12.0",
+    "torch==2.11.0+cu130 ; sys_platform == 'linux' or sys_platform == 'win32'",
+    "torch~=2.11.0 ; sys_platform == 'darwin'",
+    "tqdm>=4.67",
+    "ty>=0.0.26",
+    "wandb>=0.25",
+]
+
+[project.scripts]
+assignment1-basics = "assignment1_basics:main"
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"
+
+# Resolve CUDA wheels from the official PyTorch index on Windows and Linux.
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
