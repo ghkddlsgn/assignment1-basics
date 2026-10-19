@@ -7,8 +7,9 @@ from source.transformer_LM import TransformerLM
 from source.Optimizer import AdamW
 from source.checkpoint import ModelConfig, ModelCheckpointDict
 
+from config import device
+
 def train(dataset: Dataset, vocab_size, num_epoch:int=3):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
     if num_epoch <= 0 or len(dataset) == 0:
         raise ValueError("Training requires a nonempty dataset and positive num_epoch.")
     
@@ -16,7 +17,7 @@ def train(dataset: Dataset, vocab_size, num_epoch:int=3):
     context_length = getattr(feature, "length", -1) - 1
     
     dataset = dataset.with_format("torch", columns=["input_ids"], dtype=torch.long)
-    train_data = DataLoader(dataset, batch_size=8, shuffle=True, num_workers=0, pin_memory=device == "cuda", drop_last=False)
+    train_data = DataLoader(dataset, batch_size=8, shuffle=True, num_workers=0, pin_memory=(device == "cuda"), drop_last=False)
     print(
         f"tokens_per_epoch={len(dataset) * context_length:,} samples={len(dataset):,} "
         f"steps_per_epoch={len(train_data):,} total_steps={len(train_data) * num_epoch:,}",

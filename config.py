@@ -14,14 +14,21 @@ class TokenizerInfo:
     end_of_text_token = "<|endoftext|>"
     end_of_text_token_id = tokenizer.eot_token #gpt2
 
+@dataclass
+class PrenormTransformerConfig:
+    embed_dim = 512
+    hidden_dim = 2048
+    out_dim = 512
+    activation_func = "swiglu"
+
 #model architecture
 @dataclass
 class ModelConfig:
     tokenizer_info = TokenizerInfo()
     context_length = 128
-    num_layers = 8
-
-
+    layers = [
+        PrenormTransformerConfig(512,2048,512, "swiglu") * 8
+    ]        
 
 dataset = load_dataset(
     "text",
