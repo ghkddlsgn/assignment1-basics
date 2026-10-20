@@ -5,33 +5,30 @@ from torch.utils.data import DataLoader
 
 from source.transformer_LM import TransformerLM
 from source.Optimizer import AdamW
-from source.checkpoint import ModelConfig, ModelCheckpointDict
+from source.checkpoint import ModelCheckpointDict
 
-from config import device
+from source.model_config.config_data_strucrue import ModelConfig, PrenormTransformerConfig, TokenizerInfo
 
-def train(dataset: Dataset, vocab_size, num_epoch:int=3):
+def train(dataset: Dataset, config: ModelConfig, num_epoch:int=3):
     if num_epoch <= 0 or len(dataset) == 0:
         raise ValueError("Training requires a nonempty dataset and positive num_epoch.")
     
+    config.__post_init__()
+    device = config.device
+    vocab_size = config.vocab_size
+    context_length = config.context_length
     feature = dataset.features.get("input_ids")
-    context_length = getattr(feature, "length", -1) - 1
+    if getattr(feature, "length", -1) != context_length + 1:
+        raise ValueError("input_ids length must equal config.context_length + 1")
     
     dataset = dataset.with_format("torch", columns=["input_ids"], dtype=torch.long)
-    train_data = DataLoader(dataset, batch_size=8, shuffle=True, num_workers=0, pin_memory=(device == "cuda"), drop_last=False)
+    train_data = DataLoader(dataset, batch_size=8, shuffle=True, num_workers=0, pin_memory=(torch.device(device).type == "cuda"), drop_last=False)
     print(
         f"tokens_per_epoch={len(dataset) * context_length:,} samples={len(dataset):,} "
         f"steps_per_epoch={len(train_data):,} total_steps={len(train_data) * num_epoch:,}",
         flush=True,
     )
-    model_config:ModelConfig = {
-        "hidden_dim":128,
-        "vocab_size": vocab_size,
-        "max_kv_len":context_length,
-        "num_layers":2,
-        "num_heads":4
-    }
-    
-    model = TransformerLM(**model_config, device=device, dtype=torch.float32)
+    model = TransformerLM(config)
     optimizer = AdamW(model.parameters(), lr=3e-4, weight_decay=0.01)
     global_step = 0
     
@@ -80,7 +77,7 @@ def train(dataset: Dataset, vocab_size, num_epoch:int=3):
         checkpoint: ModelCheckpointDict = {
             "epoch": epoch + 1,
             "global_step": global_step,
-            "model_config": model_config,
+            "model_config": model.config.to_dict(),
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "optimizer_t": optimizer.t,
@@ -90,18 +87,29 @@ def train(dataset: Dataset, vocab_size, num_epoch:int=3):
     return model, optimizer, checkpoint
     
 def load_checkpoint():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
     checkpoint = torch.load(
         "checkpoint.pt",
-        map_location=device,
+        map_location="cpu",
         weights_only=True,
     )
 
-    model = TransformerLM(
-        **checkpoint["model_config"],
-        device=device,
-        dtype=torch.float32,
-    )
+    values = checkpoint["model_config"]
+    if "layers" in values:
+        model_config = ModelConfig.from_dict(values)
+    else:
+        # Existing checkpoints used a fixed FFN dimension of 128.
+        model_config = ModelConfig(
+            tokenizer_info=TokenizerInfo(vocab_size=values["vocab_size"]),
+            context_length=values["max_kv_len"],
+            layers=[
+                PrenormTransformerConfig(
+                    embed_dim=values["hidden_dim"], hidden_dim=128,
+                    out_dim=values["hidden_dim"], num_heads=values["num_heads"],
+                )
+                for _ in range(values["num_layers"])
+            ],
+        )
+    model = TransformerLM(model_config)
     model.load_state_dict(checkpoint["model_state_dict"])
 
     optimizer = AdamW(model.parameters(), lr=3e-4)
